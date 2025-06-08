@@ -16,8 +16,11 @@
   },
   "type": "module",
   "dependencies": {
+    "fuse.js": "^7.1.0",
     "immer": "^10.1.1",
     "ink": "^6.0.0",
+    "ink-text-input": "^6.0.0",
+    "jotai": "^2.12.5",
     "react": "^19.1.0",
     "yargs": "^18.0.0"
   }

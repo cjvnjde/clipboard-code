@@ -1,9 +1,13 @@
-import { Box, useApp, useFocusManager } from "ink";
+import { Box, useInput, useApp, useFocusManager } from "ink";
 import { TreeView } from "./TreeView";
 import type { TreeNode } from "../types/TreeNode";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { buildClipboardContent } from "../buildClipboardContent";
 import { copyToClipboard } from "../utils/copyToClipboard";
+import { SearchInput } from "./SearchInput";
+import { useAtom } from "jotai";
+import { searchFilterAtom } from "../state/filterState";
+import { modeStateAtom } from "../state/modeState";
 
 function getSelected(node: TreeNode): string[] {
   if (node.selected && node.type === "file") return [node.relPath];
@@ -25,6 +29,21 @@ export const App = ({
   const { enableFocus } = useFocusManager();
   const { exit } = useApp();
 
+  const [mode, setMode] = useAtom(modeStateAtom);
+  const [searchQuery, setSearchQuery] = useAtom(searchFilterAtom);
+
+  useInput((input, key) => {
+    if (mode !== "search" && input === "f") {
+      setMode("search");
+      return;
+    }
+    if (mode !== "normal" && key.escape) {
+      setMode("normal");
+      setSearchQuery("");
+      return;
+    }
+  });
+
   useEffect(() => {
     enableFocus();
   }, []);
@@ -39,6 +58,9 @@ export const App = ({
 
   return (
     <Box flexDirection="column">
+      {mode === "search" && (
+        <SearchInput query={searchQuery} setQuery={setSearchQuery} />
+      )}
       <TreeView tree={tree} onSubmit={handleSubmit} />
     </Box>
   );

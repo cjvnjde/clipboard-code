@@ -4,6 +4,25 @@ import type { TreeNode } from "../types/TreeNode";
 import type { FlattenedNode } from "../types/FlattenNode";
 import { useCallback, useMemo, useState } from "react";
 import { produce } from "immer";
+import { useAtomValue } from "jotai";
+import { isSearchModeAtom } from "../state/modeState";
+import Fuse from "fuse.js";
+import { searchFilterAtom } from "../state/filterState";
+
+function setAllSelection(nodes: TreeNode[], selected: boolean) {
+  for (const n of nodes) {
+    n.selected = selected;
+    if (n.children) setAllSelection(n.children, selected);
+  }
+}
+
+function isEverythingSelected(nodes: TreeNode[]): boolean {
+  for (const n of nodes) {
+    if (!n.selected) return false;
+    if (n.children && !isEverythingSelected(n.children)) return false;
+  }
+  return true;
+}
 
 function setSelectionRecursive(node: TreeNode, selected: boolean) {
   node.selected = selected;
@@ -45,11 +64,11 @@ function getTreePrefix(
   let prefix = "";
 
   if (depth === 0) {
-    return "";
+    return "   ";
   }
 
   for (let i = 0; i < depth; i++) {
-    prefix += ancestorsLast[i] ? "" : "│  ";
+    prefix += ancestorsLast[i] ? "   " : "│  ";
   }
 
   prefix += isLast ? "└─ " : "├─ ";
@@ -66,9 +85,11 @@ const TreeRow = ({ node: flattenedNode, onSelect }: TreeRowProps) => {
   const { depth, isLast, ancestorsLast, node } = flattenedNode;
   const { isFocused } = useFocus({ autoFocus: true });
 
+  const isSearchMode = useAtomValue(isSearchModeAtom);
+
   useInput(
-    (input) => {
-      if (input === " ") {
+    (input, key) => {
+      if (key.leftArrow || key.rightArrow || (input === " " && !isSearchMode)) {
         onSelect(flattenedNode);
       }
     },
@@ -78,9 +99,40 @@ const TreeRow = ({ node: flattenedNode, onSelect }: TreeRowProps) => {
   return (
     <Box>
       <Text color={isFocused ? "green" : "white"}>
-        {node.selected ? "[x]" : "[ ]"}{" "}
+        {node.selected ? "[x]" : "[ ]"}
         {getTreePrefix(depth, isLast, ancestorsLast)}
         {node.type === "dir" ? node.name + "/" : node.name}
+      </Text>
+    </Box>
+  );
+};
+
+const SelectAll = ({
+  isAllSelected,
+  onSelectAll,
+}: {
+  onSelectAll: () => void;
+  isAllSelected: boolean;
+}) => {
+  const { isFocused } = useFocus({ autoFocus: true });
+
+  const isSearchMode = useAtomValue(isSearchModeAtom);
+
+  useInput(
+    (input, key) => {
+      if (key.leftArrow || key.rightArrow || (input === " " && !isSearchMode)) {
+        onSelectAll();
+      }
+    },
+    { isActive: isFocused },
+  );
+
+  return (
+    <Box borderLeft={false} borderRight={false} borderStyle="single">
+      <Text color={isFocused ? "green" : "white"}>
+        {isAllSelected ? "[x]" : "[ ]"}
+        {"   "}
+        Select All
       </Text>
     </Box>
   );
@@ -94,17 +146,30 @@ export const TreeView = ({ tree: initialTree, onSubmit }: TreeViewProps) => {
   const [tree, setTree] = useState(initialTree);
   const flatTree = useMemo(() => flattenTree(tree), [tree]);
   const { focusNext, focusPrevious } = useFocusManager();
+  const searchQuery = useAtomValue(searchFilterAtom);
+  const isSearchMode = useAtomValue(isSearchModeAtom);
+
+  const filteredFlatTree = useMemo(() => {
+    if (!searchQuery) {
+      return flatTree;
+    }
+
+    const fuse = new Fuse(flatTree, {
+      keys: ["path"],
+    });
+    return fuse.search(searchQuery).map((result) => result.item);
+  }, [searchQuery, flatTree]);
 
   useInput((input, key) => {
-    if (key.downArrow || input === "j") {
+    if (key.downArrow || (input === "j" && !isSearchMode)) {
       focusNext();
     }
 
-    if (key.upArrow || input === "k") {
+    if (key.upArrow || (input === "k" && !isSearchMode)) {
       focusPrevious();
     }
 
-    if (key.return) {
+    if (key.return && !isSearchMode) {
       onSubmit?.(tree);
     }
   });
@@ -139,7 +204,19 @@ export const TreeView = ({ tree: initialTree, onSubmit }: TreeViewProps) => {
 
   return (
     <Box flexDirection="column">
-      {flatTree.map((flattenedNode) => (
+      <SelectAll
+        key="select-all"
+        isAllSelected={isEverythingSelected(tree)}
+        onSelectAll={() => {
+          setTree((prevTree) => {
+            return produce(prevTree, (draft) => {
+              const selected = isEverythingSelected(draft);
+              setAllSelection(draft, !selected);
+            });
+          });
+        }}
+      />
+      {filteredFlatTree.map((flattenedNode) => (
         <TreeRow
           node={flattenedNode}
           key={flattenedNode.node.relPath}

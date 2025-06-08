@@ -5,4 +5,5 @@ export type FlattenedNode = {
   depth: number;
   isLast: boolean;
   ancestorsLast: boolean[];
+  path: string;
 };
