@@ -1,16 +1,24 @@
 {
   "name": "clipboard-code",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/react": "^19.1.6",
+    "@types/yargs": "^17.0.33"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
-    "start": "bun index.ts",
-    "compile:linux": "bun build --compile --target=bun-linux-x64 ./index.ts --outfile out/clipboard-code",
+    "start": "bun src/index.ts",
+    "compile:linux": "bun build --compile --target=bun-linux-x64 ./src/index.ts --outfile out/clipboard-code",
     "compile": "bun compile:linux"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "immer": "^10.1.1",
+    "ink": "^6.0.0",
+    "react": "^19.1.0",
+    "yargs": "^18.0.0"
+  }
 }
