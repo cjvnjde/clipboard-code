@@ -1,0 +1,16 @@
+{
+  "name": "clipboard-code",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "start": "bun index.ts",
+    "compile:linux": "bun build --compile --target=bun-linux-x64 ./index.ts --outfile out/clipboard-code",
+    "compile": "bun compile:linux"
+  },
+  "type": "module"
+}
