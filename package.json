@@ -4,14 +4,15 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.1.6",
-    "@types/yargs": "^17.0.33"
+    "@types/yargs": "^17.0.33",
+    "react-devtools-core": "^6.1.2"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
     "start": "bun src/index.ts",
-    "compile:linux": "bun build --compile --external='react-devtools-core' --target=bun-linux-x64 ./src/index.ts --outfile out/clipboard-code",
+    "compile:linux": "bun build --compile  --target=bun-linux-x64 ./src/index.ts --outfile out/clipboard-code",
     "compile": "bun compile:linux"
   },
   "type": "module",
