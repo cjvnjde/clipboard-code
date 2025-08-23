@@ -7,10 +7,16 @@ This script formats the content of files into Markdown code blocks with YAML fro
 1. Make sure the script is executable:
 
     ```bash
-    chmod +x clipboard-code
+    chmod +x clipboard-code.sh
     ```
 
-2. Place the script in a directory that is in your system's `PATH` (e.g., `/usr/local/bin`) to make it accessible from anywhere.
+2. Create a symbolic link to the script in a directory that is in your system's `PATH` (e.g., `~/.local/bin` or `/usr/local/bin`) to make it accessible from anywhere without the `.sh` extension:
+
+    ```bash
+    ln -sr ./clipboard-code.sh ~/.local/bin/clipboard-code
+    ```
+
+3. Place the script in a directory that is in your system's `PATH` (e.g., `/usr/local/bin`) to make it accessible from anywhere.
 
 ## Usage
 
@@ -36,7 +42,7 @@ clipboard-code /path/to/your/project
 
 The script will recursively find all text files in the directory and generate a formatted output for each.
 
-### 4. Piping from `find` or `ls`
+### 3. Piping from `find` or `ls`
 
 You can pipe the output of other commands like `find` or `ls` to `clipboard-code`:
 
@@ -51,6 +57,56 @@ ls -d /path/to/your/project/* | clipboard-code
 ```
 
 This will process all files and directories in the specified path.
+
+### 4. Interactive selection with fzf
+
+You can use `fzf` to interactively select files and then process them with `clipboard-code`:
+
+```bash
+fzf --multi | clipboard-code
+```
+
+This command opens `fzf`, allowing you to select multiple files. The selected file paths are then piped to `clipboard-code` for processing.
+
+## Saving the Output
+
+### Saving to a File
+
+You can save the output to a file using the `>>` redirect operator:
+
+```bash
+clipboard-code /path/to/your/project >> project-code.md
+```
+
+This will append the formatted code of all files in `/path/to/your/project` to `project-code.md`.
+
+### Saving to Clipboard
+
+You can pipe the output directly to your clipboard manager.
+
+#### Linux (Wayland)
+
+If you are using Wayland, you can use `wl-copy`:
+
+```bash
+clipboard-code /path/to/your/file.js | wl-copy
+```
+
+#### Linux (X11)
+
+For X11-based systems, you can use `xclip`:
+
+```bash
+clipboard-code /path/to/your/file.js | xclip -selection clipboard
+```
+
+#### macOS
+
+On macOS, you can use `pbcopy`:
+
+```bash
+clipboard-code /path/to/your/file.js | pbcopy
+```
 
 ## Examples
 
