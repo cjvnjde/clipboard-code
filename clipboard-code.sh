@@ -131,6 +131,8 @@ get_code_language() {
       code_lang="bash"
     elif [[ "$first_line" =~ ^#!.*python ]]; then
       code_lang="python"
+    elif [[ -n "$first_line" && "$first_line" =~ ^#! ]]; then
+      code_lang="bash"
     fi
   fi
 
@@ -139,19 +141,35 @@ get_code_language() {
 
 should_include_file() {
   local file="$1"
-  local filename ext_lower
+  local filename ext ext_lower first_line
 
   filename=$(basename "$file")
-  ext_lower=$(echo "$filename" | tr '[:upper:]' '[:lower:]')
 
-  case "$ext_lower" in
-    ts|tsx|jsx|js|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  if [[ "$filename" == .* ]]; then
+    return 0
+  fi
+
+  if [[ "$filename" == *.* ]]; then
+    ext="${filename##*.}"
+    ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+
+    case "$ext_lower" in
+      ts|tsx|jsx|js|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish|mjs)
+        return 0
+        ;;
+    esac
+  fi
+
+  first_line=$(head -n1 "$file" 2>/dev/null || echo "")
+  if [[ "$first_line" =~ ^#! ]]; then
+    return 0
+  fi
+
+  if is_text_file "$file"; then
+    return 0
+  fi
+
+  return 1
 }
 
 expand_path() {
@@ -166,7 +184,7 @@ expand_path() {
 
 process_files() {
   local -a output_lines=()
-  local -A processed_paths
+  local processed_paths=""
 
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -174,8 +192,10 @@ process_files() {
     local abs_path
     abs_path=$(realpath "$f" 2>/dev/null || echo "$f")
 
-    [[ "${processed_paths[$abs_path]:-}" == "1" ]] && continue
-    processed_paths[$abs_path]=1
+    if [[ " $processed_paths " == *" $abs_path "* ]]; then
+      continue
+    fi
+    processed_paths="${processed_paths}${abs_path} "
 
     if [[ ! -f "$f" ]]; then
       echo "Skipping $f (not a file)" >&2
@@ -216,7 +236,7 @@ process_files() {
     output_lines+=("")
   done
 
-  printf '%s\n' "${output_lines[@]}"
+  printf '%s\n' "${output_lines[@]:-}"
 }
 
 check_dependencies
@@ -251,7 +271,7 @@ if [[ "$SHOW_HELP" == true ]]; then
   exit 0
 fi
 
-if [[ -p /dev/stdin ]] || [[ ! -t 0 ]]; then
+if [[ -p /dev/stdin ]]; then
   while IFS= read -r line; do
     expand_path "$line"
   done | process_files
