@@ -1,12 +1,243 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+MAX_FILE_SIZE_MB=10
 
 DIR="."
+SHOW_HELP=false
+
+print_help() {
+  cat <<EOF
+Usage: $(basename "$0") [OPTIONS] [DIRECTORY|FILE]
+
+Collect code files from a directory or stdin and format for clipboard.
+
+OPTIONS:
+  -r, --root DIR    Root directory to search (default: current directory)
+  -h, --help        Show this help message
+
+INPUT:
+  - If stdin is a pipe/redirect, reads file/directory paths from stdin
+  - Otherwise, finds all files in the specified directory
+
+EXAMPLES:
+  $(basename "$0") .
+  $(basename "$0") --root /path/to/project
+  find . -name "*.py" | $(basename "$0")
+EOF
+}
+
+check_dependencies() {
+  local missing=()
+  for cmd in file realpath; do
+    if ! command -v "$cmd" &>/dev/null; then
+      missing+=("$cmd")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "Error: Missing required commands: ${missing[*]}" >&2
+    exit 1
+  fi
+}
+
+is_text_file() {
+  local file="$1"
+  local mime_type
+
+  [[ -f "$file" ]] && [[ -r "$file" ]] || return 1
+
+  mime_type=$(file --mime-type -b "$file" 2>/dev/null) || return 1
+  [[ "$mime_type" == "inode/x-empty" ]] && return 1
+
+  if [[ "$mime_type" =~ ^text/ ]]; then
+    return 0
+  fi
+
+  case "$mime_type" in
+    application/json|application/javascript|application/xml|application/yaml)
+      return 0
+      ;;
+    application/x-shellscript|application/x-sh)
+      return 0
+      ;;
+    application/x-httpd-php|application/x-ruby|application/x-python)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+get_code_language() {
+  local file="$1"
+  local filename ext ext_lower first_line code_lang=""
+
+  filename=$(basename "$file")
+
+  if [[ "$filename" == *.* ]]; then
+    ext="${filename##*.}"
+    ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+
+    case "$ext_lower" in
+      tsx|jsx) code_lang="tsx" ;;
+      ts) code_lang="typescript" ;;
+      js) code_lang="javascript" ;;
+      py) code_lang="python" ;;
+      sh) code_lang="bash" ;;
+      rb) code_lang="ruby" ;;
+      go) code_lang="go" ;;
+      rs) code_lang="rust" ;;
+      java) code_lang="java" ;;
+      cpp|cc|cxx) code_lang="cpp" ;;
+      c) code_lang="c" ;;
+      h|hpp) code_lang="c" ;;
+      cs) code_lang="csharp" ;;
+      php) code_lang="php" ;;
+      swift) code_lang="swift" ;;
+      kt) code_lang="kotlin" ;;
+      dart) code_lang="dart" ;;
+      vue) code_lang="vue" ;;
+      svelte) code_lang="svelte" ;;
+      html) code_lang="html" ;;
+      css) code_lang="css" ;;
+      scss|sass) code_lang="scss" ;;
+      less) code_lang="less" ;;
+      json) code_lang="json" ;;
+      xml) code_lang="xml" ;;
+      yaml|yml) code_lang="yaml" ;;
+      toml) code_lang="toml" ;;
+      ini) code_lang="ini" ;;
+      conf) code_lang="conf" ;;
+      md) code_lang="markdown" ;;
+      sql) code_lang="sql" ;;
+      r) code_lang="r" ;;
+      scala) code_lang="scala" ;;
+      clj) code_lang="clojure" ;;
+      hs) code_lang="haskell" ;;
+      ex|exs) code_lang="elixir" ;;
+      erl) code_lang="erlang" ;;
+      lua) code_lang="lua" ;;
+      pl) code_lang="perl" ;;
+      vim) code_lang="vim" ;;
+      *) code_lang="$ext" ;;
+    esac
+  else
+    first_line=$(head -n1 "$file" 2>/dev/null || echo "")
+
+    if [[ "$first_line" =~ ^#!.*/(bash|sh) ]]; then
+      code_lang="bash"
+    elif [[ "$first_line" =~ ^#!.*python ]]; then
+      code_lang="python"
+    fi
+  fi
+
+  echo "$code_lang"
+}
+
+should_include_file() {
+  local file="$1"
+  local filename ext_lower
+
+  filename=$(basename "$file")
+  ext_lower=$(echo "$filename" | tr '[:upper:]' '[:lower:]')
+
+  case "$ext_lower" in
+    ts|tsx|jsx|js|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+expand_path() {
+  local path="$1"
+
+  if [[ -d "$path" ]]; then
+    find "$path" -type f 2>/dev/null
+  elif [[ -f "$path" ]]; then
+    echo "$path"
+  fi
+}
+
+process_files() {
+  local -a output_lines=()
+  local -A processed_paths
+
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+
+    local abs_path
+    abs_path=$(realpath "$f" 2>/dev/null || echo "$f")
+
+    [[ "${processed_paths[$abs_path]:-}" == "1" ]] && continue
+    processed_paths[$abs_path]=1
+
+    if [[ ! -f "$f" ]]; then
+      echo "Skipping $f (not a file)" >&2
+      continue
+    fi
+
+    if [[ ! -r "$f" ]]; then
+      echo "Skipping $f (not readable)" >&2
+      continue
+    fi
+
+    local file_size
+    file_size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+
+    if [[ $file_size -gt $((MAX_FILE_SIZE_MB * 1024 * 1024)) ]]; then
+      echo "Skipping $f (exceeds ${MAX_FILE_SIZE_MB}MB limit)" >&2
+      continue
+    fi
+
+    if ! is_text_file "$f"; then
+      continue
+    fi
+
+    if ! should_include_file "$f"; then
+      continue
+    fi
+
+    local code_lang
+    code_lang=$(get_code_language "$f")
+
+    output_lines+=("---")
+    output_lines+=("file_path: \"$f\"")
+    output_lines+=("---")
+    output_lines+=("")
+    output_lines+=("\`\`\`${code_lang}")
+    output_lines+=("$(cat "$f")")
+    output_lines+=("\`\`\`")
+    output_lines+=("")
+  done
+
+  printf '%s\n' "${output_lines[@]}"
+}
+
+check_dependencies
 
 while [[ $# -gt 0 ]]; do
-  case $1 in
+  case "$1" in
     -r|--root)
+      if [[ -z "${2:-}" ]]; then
+        echo "Error: $1 requires a directory argument" >&2
+        exit 1
+      fi
       DIR="$2"
       shift 2
+      ;;
+    -h|--help)
+      SHOW_HELP=true
+      shift
+      ;;
+    -*)
+      echo "Error: Unknown option: $1" >&2
+      exit 1
       ;;
     *)
       DIR="$1"
@@ -15,113 +246,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-processed_files_list=""
-
-expand_path() {
-  local path="$1"
-  if [[ -d "$path" ]]; then
-    find "$path" -type f
-  elif [[ -f "$path" ]]; then
-    echo "$path"
-  fi
-}
-
-if [ -t 0 ]; then
-  INPUT_SOURCE="find \"$DIR\" -type f"
-else
-  INPUT_SOURCE="while IFS= read -r line; do expand_path \"\$line\"; done"
+if [[ "$SHOW_HELP" == true ]]; then
+  print_help
+  exit 0
 fi
 
-while IFS= read -r f; do
-  [[ -z "$f" ]] && continue
-  
-  abs_path=$(realpath "$f" 2>/dev/null || echo "$f")
-  
-  if [[ "$processed_files_list" == *"|$abs_path|"* ]]; then
-    continue
+if [[ -p /dev/stdin ]] || [[ ! -t 0 ]]; then
+  while IFS= read -r line; do
+    expand_path "$line"
+  done | process_files
+else
+  if [[ ! -e "$DIR" ]]; then
+    echo "Error: Path does not exist: $DIR" >&2
+    exit 1
   fi
-  
-  processed_files_list="${processed_files_list}|$abs_path|"
-  
-  if [[ ! -f "$f" ]] || [[ ! -r "$f" ]]; then
-    echo "Skipping $f (not found or not readable)" >&2
-    continue
-  fi
-  
-   MIME_TYPE=$(file --mime-type "$f" | cut -d: -f2 | tr -d ' ')
-   [[ "$MIME_TYPE" == "inode/x-empty" ]] && continue
-   if [[ "$MIME_TYPE" =~ ^text/ ]] || \
-      [[ "$MIME_TYPE" =~ ^application/(json|javascript|xml|yaml|x-yaml|x-sh|x-shellscript) ]] || \
-      [[ "$MIME_TYPE" =~ ^application/(x-httpd-php|x-ruby|x-python) ]] || \
-      [[ "${f,,}" =~ \.(tsx?|jsx?|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish)$ ]]; then
-     
-     FILENAME=$(basename "$f")
-     FILE_EXT="${FILENAME##*.}"
-     FILE_EXT_LOWER=$(echo "$FILE_EXT" | tr '[:upper:]' '[:lower:]')
-    
-     if [[ "$FILE_EXT" != "$FILENAME" ]] && [[ -n "$FILE_EXT" ]]; then
-         case "${FILE_EXT_LOWER}" in
-             tsx|jsx) CODE_LANG="tsx" ;;
-             ts) CODE_LANG="typescript" ;;
-             js) CODE_LANG="javascript" ;;
-             py) CODE_LANG="python" ;;
-             sh) CODE_LANG="bash" ;;
-             rb) CODE_LANG="ruby" ;;
-             go) CODE_LANG="go" ;;
-             rs) CODE_LANG="rust" ;;
-             java) CODE_LANG="java" ;;
-             cpp|cc|cxx) CODE_LANG="cpp" ;;
-             c) CODE_LANG="c" ;;
-             h|hpp) CODE_LANG="c" ;;
-             cs) CODE_LANG="csharp" ;;
-             php) CODE_LANG="php" ;;
-             swift) CODE_LANG="swift" ;;
-             kt) CODE_LANG="kotlin" ;;
-             dart) CODE_LANG="dart" ;;
-             vue) CODE_LANG="vue" ;;
-             svelte) CODE_LANG="svelte" ;;
-             html) CODE_LANG="html" ;;
-             css) CODE_LANG="css" ;;
-             scss|sass) CODE_LANG="scss" ;;
-             less) CODE_LANG="less" ;;
-             json) CODE_LANG="json" ;;
-             xml) CODE_LANG="xml" ;;
-             yaml|yml) CODE_LANG="yaml" ;;
-             toml) CODE_LANG="toml" ;;
-             ini) CODE_LANG="ini" ;;
-             conf) CODE_LANG="conf" ;;
-             md) CODE_LANG="markdown" ;;
-             sql) CODE_LANG="sql" ;;
-             r) CODE_LANG="r" ;;
-             scala) CODE_LANG="scala" ;;
-             clj) CODE_LANG="clojure" ;;
-             hs) CODE_LANG="haskell" ;;
-             ex|exs) CODE_LANG="elixir" ;;
-             erl) CODE_LANG="erlang" ;;
-             lua) CODE_LANG="lua" ;;
-             pl) CODE_LANG="perl" ;;
-             vim) CODE_LANG="vim" ;;
-             *) CODE_LANG="$FILE_EXT" ;;
-         esac
-    else
-        FIRST_LINE=$(head -n1 "$f" 2>/dev/null)
-        if [[ "$FIRST_LINE" =~ ^#!.*bash ]] || [[ "$FIRST_LINE" =~ ^#!.*sh ]]; then
-            CODE_LANG="bash"
-        elif [[ "$FIRST_LINE" =~ ^#!.*python ]]; then
-            CODE_LANG="python"
-        else
-            CODE_LANG=""
-        fi
-    fi
-    
-    OUTPUT="${OUTPUT}---\n"
-    OUTPUT="${OUTPUT}file_path: \"$f\"\n"
-    OUTPUT="${OUTPUT}---\n\n"
-    
-    OUTPUT="$OUTPUT\`\`\`${CODE_LANG}\n"
-    OUTPUT="$OUTPUT$(cat "$f")\n"
-    OUTPUT="$OUTPUT\`\`\`\n\n"
-  fi
-done < <(eval "$INPUT_SOURCE")
 
-printf "%b" "$OUTPUT"
+  expand_path "$DIR" | process_files
+fi
