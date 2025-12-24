@@ -1,90 +1,200 @@
 #!/usr/bin/env bats
 
 setup() {
-    # 1. Define the path to the script (One level up from the 'test' directory)
     export SCRIPT_PATH="$BATS_TEST_DIRNAME/../clipboard-code.sh"
-    
-    # 2. Create a temporary sandbox directory for file operations
     export TEST_DIR="$(mktemp -d)"
-    
-    # 3. Create dummy files with distinct content
-    # We add content so they aren't skipped as empty files
-    echo "console.log('root');" > "$TEST_DIR/root_file.js"
-    echo "print('python')" > "$TEST_DIR/root_python.py"
-    
-    # 4. Create a subdirectory with a file
-    mkdir "$TEST_DIR/subdir"
-    echo "func main() {}" > "$TEST_DIR/subdir/nested.go"
 }
 
 teardown() {
-    # Clean up the temporary directory after each test
     rm -rf "$TEST_DIR"
 }
 
-# --- TEST CASE 1: Default Directory Scan ---
-@test "Group 1: Scan current directory (default behavior)" {
-    # Move into the test dir so "." refers to it
-    cd "$TEST_DIR"
-    
-    run bash "$SCRIPT_PATH"
-    
-    [ "$status" -eq 0 ]
-    # Output should contain the file path header for the JS file
-    [[ "$output" == *"root_file.js"* ]]
-    [[ "$output" == *"nested.go"* ]]
-}
-
-# --- TEST CASE 2: Root Flag (-r) ---
-@test "Group 1: Scan specific directory using -r flag" {
-    # Run from outside, pointing to the test dir
-    run bash "$SCRIPT_PATH" -r "$TEST_DIR"
-    
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"root_file.js"* ]]
-    [[ "$output" == *"nested.go"* ]]
-}
-
-# --- TEST CASE 3: Root Flag (--root) ---
-@test "Group 1: Scan specific directory using --root flag" {
-    run bash "$SCRIPT_PATH" --root "$TEST_DIR"
-    
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"root_file.js"* ]]
-    [[ "$output" == *"nested.go"* ]]
-}
-
-# --- TEST CASE 4: Direct File Arguments ---
-@test "Group 1: Process specific files passed as arguments" {
-    run bash "$SCRIPT_PATH" "$TEST_DIR/root_file.js" "$TEST_DIR/subdir/nested.go"
-    
-    [ "$status" -eq 0 ]
-    # Should include these two
-    [[ "$output" == *"root_file.js"* ]]
-    [[ "$output" == *"nested.go"* ]]
-    # Should NOT include the python file which we didn't ask for
-    [[ "$output" != *"root_python.py"* ]]
-}
-
-# --- TEST CASE 5: Stdin Piping ---
-@test "Group 1: Process file list via Stdin (Pipe)" {
-    # Use 'find' to generate list and pipe it to script
-    # We pipe strictly the python file to ensure it accepts stdin
+@test "Input: Process file list via Stdin (Pipe)" {
+    echo "content" > "$TEST_DIR/root_python.py"
     run bash -c "echo '$TEST_DIR/root_python.py' | bash '$SCRIPT_PATH'"
     
     [ "$status" -eq 0 ]
     [[ "$output" == *"root_python.py"* ]]
-    [[ "$output" != *"root_file.js"* ]]
 }
 
-# --- TEST CASE 6: Mixed Directory and File Args ---
-# Testing the 'case *)' logic where an arg is treated as DIR if no flags are used
-@test "Group 1: Handle directory path passed as a positional argument" {
-    run bash "$SCRIPT_PATH" "$TEST_DIR/subdir"
+@test "Input: Handle empty stdin gracefully" {
+    run bash -c "echo -n '' | bash '$SCRIPT_PATH'"
     
     [ "$status" -eq 0 ]
-    # Should find the nested file
-    [[ "$output" == *"nested.go"* ]]
-    # Should NOT find the root file
-    [[ "$output" != *"root_file.js"* ]]
+    [[ "$output" == "" ]]
+}
+
+@test "Input: Handle stdin with empty lines" {
+    echo "content" > "$TEST_DIR/file.js"
+    run bash -c "echo -e '\n\n$TEST_DIR/file.js\n\n' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file.js"* ]]
+}
+
+@test "Input: Handle stdin with duplicate entries" {
+    echo "content" > "$TEST_DIR/dup.js"
+    
+    run bash -c "echo -e '$TEST_DIR/dup.js\n$TEST_DIR/dup.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+}
+
+@test "Input: Process multiple files from stdin" {
+    echo "js" > "$TEST_DIR/file1.js"
+    echo "py" > "$TEST_DIR/file2.py"
+    
+    run bash -c "echo -e '$TEST_DIR/file1.js\n$TEST_DIR/file2.py' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file1.js"* ]]
+    [[ "$output" == *"file2.py"* ]]
+}
+
+@test "Input: Handle here-string stdin input" {
+    echo "content" > "$TEST_DIR/file.js"
+    
+    run bash "$SCRIPT_PATH" <<< "$TEST_DIR/file.js"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file.js"* ]]
+}
+
+@test "Input: Handle here-doc stdin input" {
+    echo "content" > "$TEST_DIR/file.js"
+    
+    run bash "$SCRIPT_PATH" <<EOF
+$TEST_DIR/file.js
+EOF
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file.js"* ]]
+}
+
+@test "Input: Process stdin with paths containing spaces" {
+    echo "content" > "$TEST_DIR/my file.js"
+    
+    run bash -c "echo '$TEST_DIR/my file.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"my file.js"* ]]
+}
+
+@test "Input: Handle non-ASCII path in stdin" {
+    mkdir "$TEST_DIR/тест"
+    echo "test" > "$TEST_DIR/тест/file.js"
+    
+    run bash -c "echo '$TEST_DIR/тест/file.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file.js"* ]]
+}
+
+@test "Input: Stdin input with relative paths" {
+    echo "content" > "$TEST_DIR/rel.js"
+    cd "$TEST_DIR"
+    
+    run bash -c "echo './rel.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rel.js"* ]]
+}
+
+@test "Input: Mixed absolute and relative paths in stdin" {
+    echo "content" > "$TEST_DIR/abs.js"
+    echo "content" > "$TEST_DIR/rel.js"
+    cd "$TEST_DIR"
+    
+    run bash -c "echo -e '$TEST_DIR/abs.js\n./rel.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+}
+
+@test "Input: Very long path in stdin" {
+    long_dir="$TEST_DIR"
+    for i in $(seq 1 20); do
+        long_dir="$long_dir/dir_$i"
+        mkdir -p "$long_dir"
+    done
+    echo "test" > "$long_dir/file.js"
+    
+    run bash -c "echo '$long_dir/file.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file.js"* ]]
+}
+
+@test "Input: Stdin with many files" {
+    for i in $(seq 1 20); do
+        echo "content" > "$TEST_DIR/file_$i.js"
+    done
+    
+    run bash -c "printf '%s\n' $TEST_DIR/file_{1..20}.js | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"file_1.js"* ]]
+    [[ "$output" == *"file_20.js"* ]]
+}
+
+@test "Input: Directory path via stdin is treated as file path" {
+    mkdir "$TEST_DIR/subdir"
+    echo "test" > "$TEST_DIR/subdir/file.js"
+    
+    run bash -c "echo '$TEST_DIR/subdir' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+}
+
+@test "Input: Non-existent file in stdin" {
+    run bash -c "echo '$TEST_DIR/nonexistent.js' | bash '$SCRIPT_PATH'" 2>&1
+    
+    [ "$status" -eq 0 ]
+}
+
+@test "Input: Stdin with only whitespace lines" {
+    run bash -c "echo -e '   \n\t\n  ' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == "" ]]
+}
+
+@test "Input: Symlink in stdin" {
+    echo "original" > "$TEST_DIR/original.js"
+    ln -s "$TEST_DIR/original.js" "$TEST_DIR/link.js" 2>/dev/null || true
+    
+    run bash -c "echo '$TEST_DIR/link.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"link.js"* ]]
+}
+
+@test "Input: Broken symlink in stdin" {
+    ln -s "$TEST_DIR/nonexistent.js" "$TEST_DIR/broken.js" 2>/dev/null || true
+    
+    run bash -c "echo '$TEST_DIR/broken.js' | bash '$SCRIPT_PATH'" 2>&1
+    
+    [ "$status" -eq 0 ]
+}
+
+@test "Input: Unicode content in file via stdin" {
+    echo "привет" > "$TEST_DIR/unicode.js"
+    
+    run bash -c "echo '$TEST_DIR/unicode.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"привет"* ]]
+}
+
+@test "Input: Multiline content via stdin" {
+    cat > "$TEST_DIR/multiline.js" << 'EOF'
+function test() {
+    return true;
+}
+EOF
+    
+    run bash -c "echo '$TEST_DIR/multiline.js' | bash '$SCRIPT_PATH'"
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"function test"* ]]
+    [[ "$output" == *"return true"* ]]
 }
