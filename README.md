@@ -1,154 +1,230 @@
 # clipboard-code
 
-This script formats the content of files into Markdown code blocks with YAML front matter, making it easy to copy and paste code snippets with their file paths.
+Format files into Markdown code blocks with YAML front matter.
 
-## Installation
-
-1. Make sure the script is executable:
-
-    ```bash
-    chmod +x clipboard-code.sh
-    ```
-
-2. Create a symbolic link to the script in a directory that is in your system's `PATH` (e.g., `~/.local/bin` or `/usr/local/bin`) to make it accessible from anywhere without the `.sh` extension:
-
-    ```bash
-    ln -sr ./clipboard-code.sh ~/.local/bin/clipboard-code
-    ```
-
-3. Place the script in a directory that is in your system's `PATH` (e.g., `/usr/local/bin`) to make it accessible from anywhere.
-
-## Usage
-
-You can use the `clipboard-code` script in several ways:
-
-### 1. Process a Single File
-
-To process a single file, provide the file path as an argument:
+## Quick Examples
 
 ```bash
-clipboard-code /path/to/your/file.js
+# Single file
+clipboard-code script.py
+
+# All files in directory
+clipboard-code /path/to/project
+
+# From pipe (find, ls, fzf)
+find . -name "*.go" | clipboard-code
+fzf | clipboard-code
+
+# Save to file
+clipboard-code src/ >> project.md
+
+# Copy to clipboard
+clipboard-code main.js | pbcopy      # macOS
+clipboard-code main.js | xclip -selection clipboard  # Linux X11
+clipboard-code main.js | wl-copy     # Linux Wayland
 ```
 
-This will output the content of `file.js` in a Markdown code block with its file path in the front matter.
+## Input Methods
 
-### 2. Process a Directory
+### Argument: Single File
+```bash
+clipboard-code myfile.js
+```
 
-To process all files in a directory, provide the directory path:
+### Argument: Directory
+```bash
+clipboard-code /path/to/project   # recursive
+```
+
+### Pipe: File List
+```bash
+echo "file1.py" | clipboard-code
+printf "file1.js\nfile2.py" | clipboard-code
+```
+
+### Here-String/Doc
+```bash
+clipboard-code <<< "script.sh"
+clipboard-code <<EOF
+file1.py
+file2.js
+EOF
+```
+
+## Workflow Examples
+
+### Select files interactively with fzf
+```bash
+# Multi-select files then copy to clipboard
+fzf --multi | clipboard-code | pbcopy
+
+# Filter by extension first
+find . -name "*.py" | fzf --multi | clipboard-code
+```
+
+### Git workflows
+```bash
+# Show changed files in current branch
+git diff --name-only | clipboard-code
+
+# Show staged files
+git diff --cached --name-only | clipboard-code
+
+# All Python files changed since main
+git diff main...HEAD --name-only | grep '\.py$' | clipboard-code
+
+# Files from specific commit
+git show --name-only --pretty=format: COMMIT | clipboard-code
+```
+
+### Code review / sharing
+```bash
+# Export entire src directory to file
+clipboard-code src/ > codebase.md
+
+# Export only modified Go files
+git status --porcelain | awk '{print $2}' | grep '\.go$' | clipboard-code
+
+# Create documentation from config files
+find . -name "*.config" -o -name "*.conf" | clipboard-code > configs.md
+```
+
+### Multi-source combinations
+```bash
+# Merge multiple directories
+(echo dir1/file1.py; echo dir2/file2.js) | clipboard-code
+
+# Combine find results with specific files
+find . -name "*.ts" | clipboard-code && echo "extra.py" | clipboard-code > combined.md
+
+# From git ls-files
+git ls-files '*.json' | clipboard-code
+```
+
+### Output variations
+```bash
+# Append to existing file
+clipboard-code new_feature/ >> README.md
+
+# Only file paths (extract from output)
+clipboard-code src/ | grep 'file_path:' | cut -d'"' -f2
+
+# Count files processed
+clipboard-code project/ | grep -c 'file_path:'
+
+# Preview without saving
+clipboard-code app.py | head -20
+```
+
+### IDE / Editor integration
+```bash
+# Vim/Neovim: selected lines to clipboard
+:'<,'>w !clipboard-code | pbcopy
+
+# VSCode terminal: copy current file
+code --locale en . && clipboard-code ${PWD}/src/App.tsx | pbcopy
+```
+
+### Filter by file characteristics
+```bash
+# Only recently modified files (last 7 days)
+find . -mtime -7 -name "*.py" | clipboard-code
+
+# Files larger than 1KB
+find . -size +1k -name "*.js" | clipboard-code
+
+# Top-level config files only
+ls *.json *.yaml *.toml 2>/dev/null | clipboard-code
+
+# Hidden config files
+find . -maxdepth 1 -name "\.*" | clipboard-code
+```
+
+### Documentation generation
+```bash
+# Generate API docs from Python
+find . -name "api*.py" | clipboard-code > api_reference.md
+
+# Database schema from SQL files
+find . -name "*.sql" | clipboard-code > schema.md
+
+# Component library from Vue/React files
+find . -path "*/components/*" -name "*.vue" | clipboard-code > components.md
+```
+
+## Examples by Language
 
 ```bash
-clipboard-code /path/to/your/project
+clipboard-code main.go          # go
+clipboard-code lib.rs           # rust
+clipboard-code index.tsx        # tsx
+clipboard-code App.vue          # vue
+clipboard-code config.yaml      # yaml
+clipboard-code Dockerfile       # dockerfile
+clipboard-code Makefile         # makefile
+clipboard-code query.sql        # sql
+clipboard-code styles.scss      # scss
+clipboard-code component.jsx    # javascript react
+clipboard-code service.rb       # ruby
+clipboard-code script.php       # php
+clipboard-code Hello.java       # java
+clipboard-code main.c           # c
+clipboard-code header.hpp       # c++
+clipboard-code program.cs       # c#
+clipboard-code solution.swift   # swift
+clipboard-code main.kt          # kotlin
+clipboard-code main.dart        # dart
+clipboard-code hello.hs         # haskell
+clipboard-code mix.exs          # elixir
+clipboard-code hello.ex         # elixir module
+clipboard-code hello.erl        # erlang
+clipboard-code hello.clj        # clojure
+clipboard-code main.lua         # lua
+clipboard-code hello.pl         # perl
+clipboard-code hello.nim        # nim
+clipboard-code build.zig        # zig
+clipboard-code main.tf          # terraform
+clipboard-code docker-compose.yml  # yaml
+clipboard-code .env.example     # dotenv (text detected)
 ```
 
-The script will recursively find all text files in the directory and generate a formatted output for each.
+## Filtering
 
-### 3. Piping from `find` or `ls`
+Only processes text files (skips binary):
+- Code files: `.py`, `.js`, `.ts`, `.go`, `.rs`, etc.
+- Config files: `.json`, `.yaml`, `.toml`, `.ini`, `.conf`
+- Markup: `.html`, `.xml`, `.md`, `.vue`, `.svelte`
+- Scripts: `.sh`, `.bash`, `.py` (via shebang detection)
 
-You can pipe the output of other commands like `find` or `ls` to `clipboard-code`:
+Rejected: images, PDFs, archives, compiled binaries
 
+## Shebang Detection
+
+Scripts without extensions are detected by shebang:
 ```bash
-find . -name "*.py" | clipboard-code
+echo '#!/bin/bash\necho hi' > runner
+clipboard-code runner           # → bash
+
+echo '#!/usr/bin/env python3\nprint(1)' > checker
+clipboard-code checker          # → python
 ```
 
-This will process all Python files in the current directory.
+## Output Format
 
-```bash
-ls -d /path/to/your/project/* | clipboard-code
-```
-
-This will process all files and directories in the specified path.
-
-### 4. Interactive selection with fzf
-
-You can use `fzf` to interactively select files and then process them with `clipboard-code`:
-
-```bash
-fzf --multi | clipboard-code
-```
-
-This command opens `fzf`, allowing you to select multiple files. The selected file paths are then piped to `clipboard-code` for processing.
-
-## Saving the Output
-
-### Saving to a File
-
-You can save the output to a file using the `>>` redirect operator:
-
-```bash
-clipboard-code /path/to/your/project >> project-code.md
-```
-
-This will append the formatted code of all files in `/path/to/your/project` to `project-code.md`.
-
-### Saving to Clipboard
-
-You can pipe the output directly to your clipboard manager.
-
-#### Linux (Wayland)
-
-If you are using Wayland, you can use `wl-copy`:
-
-```bash
-clipboard-code /path/to/your/file.js | wl-copy
-```
-
-#### Linux (X11)
-
-For X11-based systems, you can use `xclip`:
-
-```bash
-clipboard-code /path/to/your/file.js | xclip -selection clipboard
-```
-
-#### macOS
-
-On macOS, you can use `pbcopy`:
-
-```bash
-clipboard-code /path/to/your/file.js | pbcopy
-```
-
-## Examples
-
-### Example 1: Process a Python file
-
-```bash
-clipboard-code my_script.py
-```
-
-**Output:**
-
-``````yaml
+```yaml
 ---
-file_path: "my_script.py"
+file_path: "src/main.py"
 ---
 
 ```python
-# Contents of my_script.py
-print("Hello, world!")
+def main():
+    print("hello")
+```
 ```
 
-``````
+## Install
 
-## Supported Languages
-
-The script automatically detects the language for syntax highlighting based on the file extension. It supports a wide range of common programming and markup languages, including:
-
-- JavaScript (`.js`, `.jsx`)
-- TypeScript (`.ts`, `.tsx`)
-- Python (`.py`)
-- Ruby (`.rb`)
-- Go (`.go`)
-- Rust (`.rs`)
-- Java (`.java`)
-- C/C++ (`.c`, `.cpp`, `.h`)
-- C# (`.cs`)
-- PHP (`.php`)
-- Swift (`.swift`)
-- Kotlin (`.kt`)
-- HTML (`.html`)
-- CSS/SCSS (`.css`, `.scss`)
-- JSON (`.json`)
-- YAML (`.yaml`, `.yml`)
-- Markdown (`.md`)
-- And many more.
+```bash
+chmod +x clipboard-code.sh
+ln -sr clipboard-code.sh ~/.local/bin/clipboard-code
+```
