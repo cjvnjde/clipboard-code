@@ -189,13 +189,13 @@ process_files() {
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
 
-    local abs_path
-    abs_path=$(realpath "$f" 2>/dev/null || echo "$f")
+    local resolved_path
+    resolved_path=$(realpath "$f" 2>/dev/null || echo "$f")
 
-    if [[ " $processed_paths " == *" $abs_path "* ]]; then
+    if [[ " $processed_paths " == *" $resolved_path "* ]]; then
       continue
     fi
-    processed_paths="${processed_paths}${abs_path} "
+    processed_paths="${processed_paths}${resolved_path} "
 
     if [[ ! -f "$f" ]]; then
       echo "Skipping $f (not a file)" >&2
@@ -223,11 +223,12 @@ process_files() {
       continue
     fi
 
-    local code_lang
+    local code_lang output_path
     code_lang=$(get_code_language "$f")
+    output_path="$f"
 
     output_lines+=("---")
-    output_lines+=("file_path: \"$f\"")
+    output_lines+=("file_path: \"$output_path\"")
     output_lines+=("---")
     output_lines+=("")
     output_lines+=("\`\`\`${code_lang}")
