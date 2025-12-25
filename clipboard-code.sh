@@ -160,18 +160,17 @@ should_include_file() {
   filename=$(basename "$file")
 
   # Always try to include hidden files (dotfiles)
-  # They'll still be filtered by is_text_file if they're binary
   if [[ "$filename" == .* ]]; then
-    # Check if it's a text file, but be lenient
-    if is_text_file "$file"; then
-      return 0
-    fi
-    # Even if is_text_file fails, try to include common config files
+    # Common config files are always included if readable
     case "$filename" in
-      .env|.secret|.gitignore|.dockerignore|.editorconfig|.eslintrc|.prettierrc|.babelrc|.npmrc|.yarnrc)
+      .env|.env.*|.secret|.gitignore|.dockerignore|.editorconfig|.eslintrc|.eslintrc.*|.prettierrc|.prettierrc.*|.babelrc|.babelrc.*|.npmrc|.yarnrc)
         return 0
         ;;
     esac
+    # Other hidden files: check if they're text
+    if is_text_file "$file"; then
+      return 0
+    fi
   fi
 
   if [[ "$filename" == *.* ]]; then
@@ -240,10 +239,8 @@ process_files() {
       continue
     fi
 
-    if ! is_text_file "$f"; then
-      continue
-    fi
-
+    # Check if file should be included (extension/shebang based)
+    # This must come before is_text_file to allow known extensions
     if ! should_include_file "$f"; then
       continue
     fi
