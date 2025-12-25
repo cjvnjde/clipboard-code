@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq file coreutils
+          sudo apt-get install -y -qq file coreutils realpath
 
       - name: Debug - check script and dependencies
         shell: bash
@@ -30,6 +30,10 @@ jobs:
           echo "=== file command ==="
           which file
           file --version | head -1
+          echo ""
+          echo "=== realpath command ==="
+          which realpath
+          realpath --version | head -1
           echo ""
           echo "=== Script check_dependencies ==="
           bash -c 'source clipboard-code.sh; echo "Dependencies check passed"'
