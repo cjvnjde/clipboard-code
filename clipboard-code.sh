@@ -44,15 +44,29 @@ check_dependencies() {
 
 is_text_file() {
   local file="$1"
-  local mime_type
+  local mime_type file_size
 
   [[ -f "$file" ]] && [[ -r "$file" ]] || return 1
 
+  # Get file size
+  file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+
   mime_type=$(file -L --mime-type -b "$file" 2>/dev/null) || return 1
+
+  # Empty files are not useful
   [[ "$mime_type" == "inode/x-empty" ]] && return 1
 
+  # Accept text files
   if [[ "$mime_type" =~ ^text/ ]]; then
     return 0
+  fi
+
+  # On some systems, small text files might be detected as application/octet-stream
+  # If file is small (< 1KB) and contains only printable characters, treat as text
+  if [[ "$mime_type" == "application/octet-stream" ]] && [[ $file_size -lt 1024 ]]; then
+    if LC_ALL=C grep -q '^[[:print:][:space:]]*$' "$file" 2>/dev/null; then
+      return 0
+    fi
   fi
 
   case "$mime_type" in
@@ -145,8 +159,19 @@ should_include_file() {
 
   filename=$(basename "$file")
 
+  # Always try to include hidden files (dotfiles)
+  # They'll still be filtered by is_text_file if they're binary
   if [[ "$filename" == .* ]]; then
-    return 0
+    # Check if it's a text file, but be lenient
+    if is_text_file "$file"; then
+      return 0
+    fi
+    # Even if is_text_file fails, try to include common config files
+    case "$filename" in
+      .env|.secret|.gitignore|.dockerignore|.editorconfig|.eslintrc|.prettierrc|.babelrc|.npmrc|.yarnrc)
+        return 0
+        ;;
+    esac
   fi
 
   if [[ "$filename" == *.* ]]; then
@@ -154,7 +179,7 @@ should_include_file() {
     ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
 
     case "$ext_lower" in
-      ts|tsx|jsx|js|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish|mjs)
+      ts|tsx|jsx|js|py|rb|go|rs|java|c|cpp|cc|cxx|h|hpp|cs|php|swift|kt|dart|vue|svelte|html|css|scss|sass|less|json|xml|ya?ml|toml|ini|conf|md|sql|r|scala|clj|hs|ex|exs|erl|lua|pl|vim|sh|bash|zsh|fish|mjs|env)
         return 0
         ;;
     esac
