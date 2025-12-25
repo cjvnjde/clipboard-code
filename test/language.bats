@@ -2,7 +2,8 @@
 
 setup() {
     export SCRIPT_PATH="$BATS_TEST_DIRNAME/../clipboard-code.sh"
-    export TEST_DIR="$(mktemp -d)"
+    TEST_DIR="$(mktemp -d)"
+    export TEST_DIR
 }
 
 teardown() {

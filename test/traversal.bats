@@ -2,7 +2,8 @@
 
 setup() {
     export SCRIPT_PATH="$BATS_TEST_DIRNAME/../clipboard-code.sh"
-    export TEST_DIR="$(mktemp -d)"
+    TEST_DIR="$(mktemp -d)"
+    export TEST_DIR
     echo "unique content" > "$TEST_DIR/uniq.txt"
 }
 
@@ -76,12 +77,11 @@ teardown() {
     for i in $(seq 1 50); do
         echo "content" > "$TEST_DIR/file_$i.js"
     done
-    
-    # Create a list of all files
-    file_list=$(cd "$TEST_DIR" && ls -1 *.js | head -20 | while read f; do echo "$TEST_DIR/$f"; done)
-    
+
+    file_list=$(find "$TEST_DIR" -maxdepth 1 -name "file_*.js" -type f | sort | head -20)
+
     run bash -c "printf '%s\n' $file_list | bash '$SCRIPT_PATH'"
-    
+
     [ "$status" -eq 0 ]
     [[ "$output" == *"file_1.js"* ]]
     [[ "$output" == *"file_20.js"* ]]

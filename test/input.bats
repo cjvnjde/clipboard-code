@@ -2,7 +2,8 @@
 
 setup() {
     export SCRIPT_PATH="$BATS_TEST_DIRNAME/../clipboard-code.sh"
-    export TEST_DIR="$(mktemp -d)"
+    TEST_DIR="$(mktemp -d)"
+    export TEST_DIR
 }
 
 teardown() {
@@ -34,10 +35,13 @@ teardown() {
 
 @test "Input: Handle stdin with duplicate entries" {
     echo "content" > "$TEST_DIR/dup.js"
-    
+
     run bash -c "echo -e '$TEST_DIR/dup.js\n$TEST_DIR/dup.js' | bash '$SCRIPT_PATH'"
-    
+
     [ "$status" -eq 0 ]
+    count=$(echo "$output" | grep -c "file_path:" || echo "0")
+    [ "$count" -eq 1 ]
+    [[ "$output" == *"dup.js"* ]]
 }
 
 @test "Input: Process multiple files from stdin" {

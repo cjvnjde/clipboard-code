@@ -2,7 +2,8 @@
 
 setup() {
     export SCRIPT_PATH="$BATS_TEST_DIRNAME/../clipboard-code.sh"
-    export TEST_DIR="$(mktemp -d)"
+    TEST_DIR="$(mktemp -d)"
+    export TEST_DIR
 }
 
 teardown() {
@@ -67,9 +68,9 @@ teardown() {
 @test "Edge: Skip unreadable files" {
     echo "secret" > "$TEST_DIR/locked.js"
     chmod 000 "$TEST_DIR/locked.js" 2>/dev/null || true
-    
+
     run bash -c "echo '$TEST_DIR/locked.js' | bash '$SCRIPT_PATH'" 2>&1
-    
+
     [ "$status" -eq 0 ]
 }
 
@@ -78,9 +79,9 @@ teardown() {
     echo "locked" > "$TEST_DIR/no_read.js"
     chmod 444 "$TEST_DIR/readable.js"
     chmod 000 "$TEST_DIR/no_read.js" 2>/dev/null || true
-    
-    run bash -c "printf '%s\n' '$TEST_DIR/readable.js' | bash '$SCRIPT_PATH'" 2>&1
-    
+
+    run bash -c "printf '%s\n' '$TEST_DIR/readable.js' '$TEST_DIR/no_read.js' | bash '$SCRIPT_PATH'" 2>&1
+
     [ "$status" -eq 0 ]
     [[ "$output" == *"readable.js"* ]]
 }
