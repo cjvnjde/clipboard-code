@@ -41,8 +41,16 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/src"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"app.js"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"app.js"* ]] || {
+        echo "Output does not contain 'app.js'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: Scan directory with --root flag" {
@@ -51,8 +59,16 @@ teardown() {
 
     run bash "$SCRIPT_PATH" --root "$TEST_DIR/code"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"main.ts"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"main.ts"* ]] || {
+        echo "Output does not contain 'main.ts'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: -r flag finds nested files" {
@@ -61,8 +77,16 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/project/src/components"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Button.vue"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"Button.vue"* ]] || {
+        echo "Output does not contain 'Button.vue'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: -r flag respects file filtering" {
@@ -72,14 +96,26 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/mixed"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"code.js"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"code.js"* ]] || {
+        echo "Output does not contain 'code.js'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: -r flag with non-existent directory" {
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/nonexistent" 2>&1
 
-    [ "$status" -ne 0 ]
+    [ "$status" -ne 0 ] || {
+        echo "Expected non-zero status, got $status"
+        echo "Output: $output"
+        return 1
+    }
     [[ "$output" == *"does not exist"* || "$output" == *"Error"* ]]
 }
 
@@ -112,8 +148,16 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/hidden"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *".env"* || "$output" == *".secret"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *".env"* || "$output" == *".secret"* ]] || {
+        echo "Output does not contain '.env' or '.secret'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: Combine -r with directory argument (positional takes precedence)" {
@@ -122,8 +166,16 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR" "$TEST_DIR/other"
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"file.js"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"file.js"* ]] || {
+        echo "Output does not contain 'file.js'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Root: Unknown option shows error" {
@@ -138,9 +190,21 @@ teardown() {
 
     run bash -c "echo '$TEST_DIR/large.js' | bash '$SCRIPT_PATH'" 2>&1
 
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"large.js"* ]]
-    [[ "$output" == *"exceeds"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" != *"file_path:"*"large.js"* ]] || {
+        echo "File should NOT be in formatted output"
+        echo "Full output: $output"
+        return 1
+    }
+    [[ "$output" == *"exceeds"* ]] || {
+        echo "Output should contain 'exceeds'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Size: Accept files at exactly 10MB limit" {
@@ -167,10 +231,26 @@ teardown() {
 
     run bash -c "printf '%s\n' '$TEST_DIR/small.js' '$TEST_DIR/big.js' | bash '$SCRIPT_PATH'" 2>&1
 
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"small.js"* ]]
-    [[ "$output" != *"big.js"* ]]
-    [[ "$output" == *"exceeds"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" == *"small.js"* ]] || {
+        echo "Output should contain 'small.js'"
+        echo "Full output: $output"
+        return 1
+    }
+    [[ "$output" != *"file_path:"*"big.js"* ]] || {
+        echo "Big file should NOT be in formatted output"
+        echo "Full output: $output"
+        return 1
+    }
+    [[ "$output" == *"exceeds"* ]] || {
+        echo "Output should contain 'exceeds'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Size: -r flag also respects file size limit" {
@@ -179,9 +259,21 @@ teardown() {
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/sized" 2>&1
 
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"large.go"* ]]
-    [[ "$output" == *"exceeds"* ]]
+    [ "$status" -eq 0 ] || {
+        echo "Expected status 0, got $status"
+        echo "Output: $output"
+        return 1
+    }
+    [[ "$output" != *"file_path:"*"large.go"* ]] || {
+        echo "File should NOT be in formatted output"
+        echo "Full output: $output"
+        return 1
+    }
+    [[ "$output" == *"exceeds"* ]] || {
+        echo "Output should contain 'exceeds'"
+        echo "Full output: $output"
+        return 1
+    }
 }
 
 @test "Error: Handle unknown option gracefully" {
@@ -194,6 +286,10 @@ teardown() {
 @test "Error: Non-existent path as argument" {
     run bash "$SCRIPT_PATH" "$TEST_DIR/missing" 2>&1
 
-    [ "$status" -ne 0 ]
+    [ "$status" -ne 0 ] || {
+        echo "Expected non-zero status, got $status"
+        echo "Output: $output"
+        return 1
+    }
     [[ "$output" == *"does not exist"* || "$output" == *"Error"* ]]
 }
