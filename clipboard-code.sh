@@ -294,11 +294,16 @@ if [[ "$SHOW_HELP" == true ]]; then
   exit 0
 fi
 
-if [[ -p /dev/stdin ]]; then
+# Check if stdin is a pipe/fifo
+# On Linux: /dev/stdin is a symlink to /proc/self/fd/0
+# On macOS/BSD: /dev/stdin is a character special file that can be tested with -p
+# Use the most portable check: test the file descriptor directly
+if [[ -p /dev/stdin ]] 2>/dev/null || [[ -p /dev/fd/0 ]] 2>/dev/null || { [[ ! -t 0 ]] && [ -p /proc/self/fd/0 ] 2>/dev/null; }; then
   while IFS= read -r line; do
     expand_path "$line"
   done | process_files
 else
+  # No piped input, use directory argument
   if [[ ! -e "$DIR" ]]; then
     echo "Error: Path does not exist: $DIR" >&2
     exit 1
