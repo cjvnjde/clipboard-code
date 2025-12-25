@@ -136,7 +136,7 @@ teardown() {
 }
 
 @test "Size: Skip files exceeding 10MB limit" {
-    yes "x" | head -n $((11 * 1024 * 1024)) > "$TEST_DIR/large.js"
+    yes "x" 2>/dev/null | head -n $((11 * 1024 * 1024)) > "$TEST_DIR/large.js"
 
     run bash -c "echo '$TEST_DIR/large.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -146,7 +146,7 @@ teardown() {
 }
 
 @test "Size: Accept files at exactly 10MB limit" {
-    yes "x" | head -n $((10 * 1024 * 1024)) > "$TEST_DIR/tenmb.js"
+    yes "x" 2>/dev/null | head -n $((10 * 1024 * 1024)) > "$TEST_DIR/tenmb.js"
 
     run bash -c "echo '$TEST_DIR/tenmb.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -155,7 +155,7 @@ teardown() {
 }
 
 @test "Size: Accept files under 10MB limit" {
-    yes "x" | head -n 102400 > "$TEST_DIR/small.js"
+    yes "x" 2>/dev/null | head -n 102400 > "$TEST_DIR/small.js"
 
     run bash -c "echo '$TEST_DIR/small.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -165,7 +165,7 @@ teardown() {
 
 @test "Size: Multiple files with mixed sizes" {
     printf "small\n" > "$TEST_DIR/small.js"
-    yes "x" | head -n $((15 * 1024 * 1024)) > "$TEST_DIR/big.js"
+    yes "x" 2>/dev/null | head -n $((15 * 1024 * 1024)) > "$TEST_DIR/big.js"
 
     run bash -c "printf '%s\n' '$TEST_DIR/small.js' '$TEST_DIR/big.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -177,7 +177,7 @@ teardown() {
 
 @test "Size: -r flag also respects file size limit" {
     mkdir -p "$TEST_DIR/sized"
-    yes "x" | head -n $((12 * 1024 * 1024)) > "$TEST_DIR/sized/large.go"
+    yes "x" 2>/dev/null | head -n $((12 * 1024 * 1024)) > "$TEST_DIR/sized/large.go"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/sized" 2>&1
 

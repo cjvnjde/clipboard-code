@@ -18,6 +18,12 @@ jobs:
         id: setup-bats
         uses: bats-core/bats-action@3.0.1
 
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq file coreutils
+
       - name: Run tests
         shell: bash
         env:
