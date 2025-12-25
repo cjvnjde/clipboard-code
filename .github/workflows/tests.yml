@@ -24,30 +24,6 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq file coreutils
 
-      - name: Debug - check script and dependencies
-        shell: bash
-        run: |
-          echo "=== file command ==="
-          which file
-          file --version | head -1
-          echo ""
-          echo "=== realpath command ==="
-          which realpath || echo "realpath not found"
-          echo ""
-          echo "=== Check if script can run ==="
-          bash -c './clipboard-code.sh -h >/dev/null 2>&1 && echo "Script runs successfully" || echo "Script failed to run"'
-          echo ""
-          echo "=== Manual test ==="
-          TEST_DIR=$(mktemp -d)
-          mkdir -p "$TEST_DIR/src"
-          echo "console.log('test');" > "$TEST_DIR/src/app.js"
-          echo "--- Output from: bash clipboard-code.sh -r $TEST_DIR ---"
-          bash clipboard-code.sh -r "$TEST_DIR"
-          echo "--- End output ---"
-          echo "Exit code: $?"
-          ls -la "$TEST_DIR/src/"
-          rm -rf "$TEST_DIR"
-
       - name: Run tests
         shell: bash
         env:
