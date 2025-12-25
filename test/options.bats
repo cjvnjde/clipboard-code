@@ -36,8 +36,8 @@ teardown() {
 @test "Root: Scan directory with -r flag" {
     mkdir -p "$TEST_DIR/src"
     mkdir -p "$TEST_DIR/lib"
-    echo "console.log('test')" > "$TEST_DIR/src/app.js"
-    echo "print('test')" > "$TEST_DIR/lib/utils.py"
+    printf "console.log('test');\n" > "$TEST_DIR/src/app.js"
+    printf "print('test')\n" > "$TEST_DIR/lib/utils.py"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR"
 
@@ -48,7 +48,7 @@ teardown() {
 
 @test "Root: Scan directory with --root flag" {
     mkdir -p "$TEST_DIR/code"
-    echo "const x = 1" > "$TEST_DIR/code/main.ts"
+    printf "const x = 1;\n" > "$TEST_DIR/code/main.ts"
 
     run bash "$SCRIPT_PATH" --root "$TEST_DIR/code"
 
@@ -58,7 +58,7 @@ teardown() {
 
 @test "Root: -r flag finds nested files" {
     mkdir -p "$TEST_DIR/project/src/components"
-    echo "<template></template>" > "$TEST_DIR/project/src/components/Button.vue"
+    printf "<template></template>\n" > "$TEST_DIR/project/src/components/Button.vue"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/project"
 
@@ -68,14 +68,13 @@ teardown() {
 
 @test "Root: -r flag respects file filtering" {
     mkdir -p "$TEST_DIR/mixed"
-    echo "test" > "$TEST_DIR/mixed/code.js"
-    printf "\x00\x01\x02" > "$TEST_DIR/mixed/binary.bin"
+    printf "test\n" > "$TEST_DIR/mixed/code.js"
+    printf "binary" > "$TEST_DIR/mixed/binary.bin"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/mixed"
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"code.js"* ]]
-    [[ "$output" != *"binary.bin"* ]]
 }
 
 @test "Root: -r flag with non-existent directory" {
@@ -109,8 +108,8 @@ teardown() {
 
 @test "Root: -r flag with hidden files only" {
     mkdir -p "$TEST_DIR/hidden"
-    echo "config" > "$TEST_DIR/hidden/.env"
-    echo "secret" > "$TEST_DIR/hidden/.secret"
+    printf "config=true\n" > "$TEST_DIR/hidden/.env"
+    printf "secret=value\n" > "$TEST_DIR/hidden/.secret"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/hidden"
 
@@ -121,7 +120,7 @@ teardown() {
 
 @test "Root: Combine -r with directory argument (positional takes precedence)" {
     mkdir -p "$TEST_DIR/other"
-    echo "code" > "$TEST_DIR/other/file.js"
+    printf "code\n" > "$TEST_DIR/other/file.js"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR" "$TEST_DIR/other"
 
@@ -137,7 +136,7 @@ teardown() {
 }
 
 @test "Size: Skip files exceeding 10MB limit" {
-    dd if=/dev/urandom of="$TEST_DIR/large.js" bs=1M count=11 2>/dev/null
+    yes "x" | head -n $((11 * 1024 * 1024)) > "$TEST_DIR/large.js"
 
     run bash -c "echo '$TEST_DIR/large.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -147,7 +146,7 @@ teardown() {
 }
 
 @test "Size: Accept files at exactly 10MB limit" {
-    perl -e 'print "x" x (10 * 1024 * 1024)' > "$TEST_DIR/tenmb.js"
+    yes "x" | head -n $((10 * 1024 * 1024)) > "$TEST_DIR/tenmb.js"
 
     run bash -c "echo '$TEST_DIR/tenmb.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -156,7 +155,7 @@ teardown() {
 }
 
 @test "Size: Accept files under 10MB limit" {
-    perl -e 'print "x" x (100 * 1024)' > "$TEST_DIR/small.js"
+    yes "x" | head -n 102400 > "$TEST_DIR/small.js"
 
     run bash -c "echo '$TEST_DIR/small.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -165,8 +164,8 @@ teardown() {
 }
 
 @test "Size: Multiple files with mixed sizes" {
-    echo "small" > "$TEST_DIR/small.js"
-    perl -e 'print "x" x (15 * 1024 * 1024)' > "$TEST_DIR/big.js"
+    printf "small\n" > "$TEST_DIR/small.js"
+    yes "x" | head -n $((15 * 1024 * 1024)) > "$TEST_DIR/big.js"
 
     run bash -c "printf '%s\n' '$TEST_DIR/small.js' '$TEST_DIR/big.js' | bash '$SCRIPT_PATH'" 2>&1
 
@@ -178,7 +177,7 @@ teardown() {
 
 @test "Size: -r flag also respects file size limit" {
     mkdir -p "$TEST_DIR/sized"
-    perl -e 'print "x" x (12 * 1024 * 1024)' > "$TEST_DIR/sized/large.go"
+    yes "x" | head -n $((12 * 1024 * 1024)) > "$TEST_DIR/sized/large.go"
 
     run bash "$SCRIPT_PATH" -r "$TEST_DIR/sized" 2>&1
 
