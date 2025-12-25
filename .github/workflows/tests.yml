@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq file coreutils realpath
+          sudo apt-get install -y -qq file coreutils
 
       - name: Debug - check script and dependencies
         shell: bash
@@ -32,17 +32,20 @@ jobs:
           file --version | head -1
           echo ""
           echo "=== realpath command ==="
-          which realpath
-          realpath --version | head -1
+          which realpath || echo "realpath not found"
           echo ""
-          echo "=== Script check_dependencies ==="
-          bash -c 'source clipboard-code.sh; echo "Dependencies check passed"'
+          echo "=== Check if script can run ==="
+          bash -c './clipboard-code.sh -h >/dev/null 2>&1 && echo "Script runs successfully" || echo "Script failed to run"'
           echo ""
-          echo "=== Test script execution ==="
+          echo "=== Manual test ==="
           TEST_DIR=$(mktemp -d)
           mkdir -p "$TEST_DIR/src"
-          echo "test" > "$TEST_DIR/src/app.js"
+          echo "console.log('test');" > "$TEST_DIR/src/app.js"
+          echo "--- Output from: bash clipboard-code.sh -r $TEST_DIR ---"
           bash clipboard-code.sh -r "$TEST_DIR"
+          echo "--- End output ---"
+          echo "Exit code: $?"
+          ls -la "$TEST_DIR/src/"
           rm -rf "$TEST_DIR"
 
       - name: Run tests
