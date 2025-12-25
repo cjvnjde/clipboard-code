@@ -48,7 +48,7 @@ is_text_file() {
 
   [[ -f "$file" ]] && [[ -r "$file" ]] || return 1
 
-  mime_type=$(file --mime-type -b "$file" 2>/dev/null) || return 1
+  mime_type=$(file -L --mime-type -b "$file" 2>/dev/null) || return 1
   [[ "$mime_type" == "inode/x-empty" ]] && return 1
 
   if [[ "$mime_type" =~ ^text/ ]]; then
